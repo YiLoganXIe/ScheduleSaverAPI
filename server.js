@@ -5,14 +5,32 @@ const {MongoClient} = require('mongodb');
 const dbConfig = require("./app/config/db.config");
 const { CoursesearchController } = require("./app/Searching/course-search-controller");
 const { getFields } = require("./app/Searching/get-Field");
-
+const passport = require('passport');
 const app = express();
-
+const cookieSession = require('cookie-session');
+const e = require("express");
+require('./app/config/passport-setup');
 var corsOptions = {
     origin: "http://localhost:8081"
 };
 
 app.use(bodyParser.json());
+
+app.use(cookieSession({
+    name: 'UCDScheduler-session',
+    keys: ['key1', 'key2']
+
+}));
+
+const isLoggedIn = (req, res, next) => {
+    if (req.user){
+        next();
+    } else{
+        res.sendStatus(401);
+    }
+}
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use(bodyParser.urlencoded({extended: true}));
 
@@ -27,6 +45,26 @@ app.listen(PORT, ()=>{
 
 const client = new MongoClient(dbConfig.url, { useUnifiedTopology: true });
 
+app.get('/api/auth/failed', (req, res) => res.send('Failed to login'));
+
+app.get('/api/auth/successful', isLoggedIn, (req, res) => res.send('successful to login'));
+
+
+app.get('/api/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get('/api/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/api/auth/failed' }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/api/auth/successful');
+  });
+
+app.get('/api/auth/logout', (req, res) => {
+    req.session = null;
+    req.logout();
+    res.redirect('/api')
+})
 
 app.get("/api/course/:field/:course/:CRN/:instructor", cors(),(req, res)=>{
     CoursesearchController(client, req.params.field, req.params.course ,req.params.CRN, req.params.instructor)
