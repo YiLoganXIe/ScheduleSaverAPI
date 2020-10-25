@@ -8,8 +8,10 @@ const { getFields } = require("./app/Searching/get-Field");
 const passport = require('passport');
 const app = express();
 const cookieSession = require('cookie-session');
+const mongoose = require('mongoose');
 const e = require("express");
 require('./app/config/passport-setup');
+
 var corsOptions = {
     origin: "http://localhost:8081"
 };
@@ -22,6 +24,15 @@ app.use(cookieSession({
 
 }));
 
+mongoose.connect(dbConfig.client.url,
+    {
+        useNewUrlParser:true,
+        useUnifiedTopology:true,
+    },() => {
+        console.log('connected to mongodb using mongoose')
+    }
+);
+
 const isLoggedIn = (req, res, next) => {
     if (req.user){
         next();
@@ -29,6 +40,7 @@ const isLoggedIn = (req, res, next) => {
         res.sendStatus(401);
     }
 }
+
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -43,15 +55,20 @@ app.listen(PORT, ()=>{
     console.log(`Server is Running on Port ${PORT}...`)
 })
 
-const client = new MongoClient(dbConfig.url, { useUnifiedTopology: true });
+const client = new MongoClient(dbConfig.course.url, { useUnifiedTopology: true });
 
 app.get('/api/auth/failed', (req, res) => res.send('Failed to login'));
 
 app.get('/api/auth/successful', isLoggedIn, (req, res) => res.send('successful to login'));
 
 
-app.get('/api/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/api/auth/google', function(req,res,next){
+    req._clientDB = "hello"; // reference: https://www.coder.work/article/107043
+    passport.authenticate(
+        'google', { scope: ['profile', 'email'] }
+    )(req, res, next);
+})
+  
 
 app.get('/api/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/api/auth/failed' }),
