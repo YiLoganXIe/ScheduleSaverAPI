@@ -10,6 +10,8 @@ const app = express();
 const cookieSession = require('cookie-session');
 const mongoose = require('mongoose');
 const e = require("express");
+const keys = require("./app/config/keys");
+const authRoutes = require("./app/routes/auth-routes");
 require('./app/config/passport-setup');
 
 var corsOptions = {
@@ -19,15 +21,16 @@ var corsOptions = {
 app.use(bodyParser.json());
 
 app.use(cookieSession({
+    maxAge: 60 * 60 * 1000,
     name: 'UCDScheduler-session',
-    keys: ['key1', 'key2']
-
+    keys: keys.login.cookieSessionKey
 }));
 
 mongoose.connect(dbConfig.client.url,
     {
         useNewUrlParser:true,
         useUnifiedTopology:true,
+        useFindAndModify:false
     },() => {
         console.log('connected to mongodb using mongoose')
     }
@@ -37,7 +40,7 @@ const isLoggedIn = (req, res, next) => {
     if (req.user){
         next();
     } else{
-        res.sendStatus(401);
+        res.redirect("/api");
     }
 }
 
@@ -45,6 +48,12 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use(bodyParser.urlencoded({extended: true}));
+
+app.use("/api/auth",authRoutes);
+
+app.get('/api/successful', isLoggedIn, (req, res) => {
+    res.send("you have logged in " + req.user.username);
+});
 
 app.get("/api", (req, res)=>{
     res.send("Welcome to UCDScheduleSaver Api");
@@ -56,32 +65,6 @@ app.listen(PORT, ()=>{
 })
 
 const client = new MongoClient(dbConfig.course.url, { useUnifiedTopology: true });
-
-app.get('/api/auth/failed', (req, res) => res.send('Failed to login'));
-
-app.get('/api/auth/successful', isLoggedIn, (req, res) => res.send('successful to login'));
-
-
-app.get('/api/auth/google', function(req,res,next){
-    req._clientDB = "hello"; // reference: https://www.coder.work/article/107043
-    passport.authenticate(
-        'google', { scope: ['profile', 'email'] }
-    )(req, res, next);
-})
-  
-
-app.get('/api/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/api/auth/failed' }),
-  function(req, res) {
-    // Successful authentication, redirect home.
-    res.redirect('/api/auth/successful');
-  });
-
-app.get('/api/auth/logout', (req, res) => {
-    req.session = null;
-    req.logout();
-    res.redirect('/api')
-})
 
 app.get("/api/course/:field/:course/:CRN/:instructor", cors(),(req, res)=>{
     CoursesearchController(client, req.params.field, req.params.course ,req.params.CRN, req.params.instructor)

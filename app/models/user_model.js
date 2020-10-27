@@ -11,7 +11,6 @@ const userSchema = new Schema({
     email:String,
     photo_link:String,
     saved_course_ids:String
-
 },{
     collection:'user' // collection name
 });
